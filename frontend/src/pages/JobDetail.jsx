@@ -77,7 +77,7 @@ export default function JobDetail() {
               </div>
               {applied ? (
                 <span className="bg-green-100 text-green-700 px-4 py-2 rounded-lg text-sm font-semibold shrink-0">✓ Başvuruldu</span>
-              ) : (
+              ) : user ? (
                 <button
                   onClick={handleApply}
                   disabled={applying}
@@ -85,6 +85,14 @@ export default function JobDetail() {
                 >
                   {applying ? 'Başvuruluyor...' : 'Başvur'}
                 </button>
+              ) : (
+                <Link
+                  to="/login"
+                  state={{ from: `/jobs/${id}` }}
+                  className="bg-primary-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-primary-700 transition shrink-0"
+                >
+                  Giriş yap & Başvur
+                </Link>
               )}
             </div>
 

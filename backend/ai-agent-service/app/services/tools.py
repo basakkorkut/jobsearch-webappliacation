@@ -70,7 +70,7 @@ async def search_jobs(
     working_preference: str = "",
     position_level: str = "",
 ) -> str:
-    params = {"q": query, "limit": 5}
+    params = {"position": query, "limit": 5}
     if city:
         params["city"] = city
     if working_preference:

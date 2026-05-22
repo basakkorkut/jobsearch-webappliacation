@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import FilterPanel from '../components/FilterPanel'
 import JobCard from '../components/JobCard'
 import SearchBar from '../components/SearchBar'
@@ -9,6 +9,7 @@ export default function Search() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [results, setResults]   = useState({ items: [], total: 0, pages: 1 })
   const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState(null)
 
   const position = searchParams.get('position') || ''
   const city     = searchParams.get('city')     || ''
@@ -26,9 +27,10 @@ export default function Search() {
     const params = new URLSearchParams(searchParams)
     const path = `/api/v1/search?${params.toString()}&limit=12`
     setLoading(true)
+    setError(null)
     api.get(path)
-      .then(setResults)
-      .catch(() => {})
+      .then((data) => { setResults(data); setError(null) })
+      .catch((err) => setError(err?.message || 'İlanlar yüklenirken bir hata oluştu.'))
       .finally(() => setLoading(false))
   }, [searchParams.toString()])
 
@@ -97,11 +99,17 @@ export default function Search() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-gray-500">
-              {loading ? 'Yükleniyor...' : `${results.total} ilan bulundu`}
+              {loading ? 'Yükleniyor...' : error ? '' : `${results.total} ilan bulundu`}
             </p>
           </div>
 
-          {loading ? (
+          {error ? (
+            <div className="text-center py-16">
+              <p className="text-4xl mb-3">⚠️</p>
+              <p className="font-medium text-red-600">Bağlantı hatası</p>
+              <p className="text-sm mt-1 text-gray-500">{error}</p>
+            </div>
+          ) : loading ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {[...Array(6)].map((_, i) => (
                 <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 animate-pulse h-32" />

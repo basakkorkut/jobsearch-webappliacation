@@ -15,22 +15,26 @@ export default function Home() {
 
   // Geolocation → featured jobs
   useEffect(() => {
-    getCurrentCity()
-      .then((c) => {
-        if (!c) return
-        setCity(c)
-        setLoadingFeatured(true)
-        return api.get(`/api/v1/search/featured?city=${encodeURIComponent(c)}`)
-      })
-      .then((jobs) => { if (jobs) setFeaturedJobs(jobs) })
-      .catch(() => {
-        // Geolocation denied or failed — load Istanbul as default
-        setCity('Istanbul')
-        api.get('/api/v1/search/featured?city=Istanbul')
-          .then(setFeaturedJobs)
-          .catch(() => {})
-      })
-      .finally(() => setLoadingFeatured(false))
+    const load = async () => {
+      setLoadingFeatured(true)
+      let cityName = 'Istanbul'
+      try {
+        const detected = await getCurrentCity()
+        if (detected) cityName = detected
+      } catch {
+        // geolocation denied or timed out — use default
+      }
+      setCity(cityName)
+      try {
+        const jobs = await api.get(`/api/v1/search/featured?city=${encodeURIComponent(cityName)}`)
+        if (jobs) setFeaturedJobs(jobs)
+      } catch {
+        // silently fail — no featured jobs shown
+      } finally {
+        setLoadingFeatured(false)
+      }
+    }
+    load()
   }, [])
 
   // Recent searches if logged in

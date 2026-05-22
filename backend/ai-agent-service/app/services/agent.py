@@ -6,6 +6,7 @@ ReAct agent loop:
 """
 import json
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -19,11 +20,26 @@ MAX_ITERATIONS = 3
 
 SYSTEM_PROMPT = """Sen bir iş arama asistanısın. Kullanıcılara Türkiye'deki iş ilanlarını bulmalarında yardım ediyorsun.
 
-Kullanıcı bir pozisyon veya iş hakkında sorduğunda search_jobs aracını kullan.
-Belirli bir ilanın detaylarını öğrenmek istediğinde get_job_detail aracını kullan.
+ÖNEMLİ KURALLAR:
+1. Kullanıcı herhangi bir iş, pozisyon, sektör veya çalışma imkanı hakkında sorduğunda MUTLAKA search_jobs aracını çağır.
+2. Asla kendi bilginden iş ilanı, şirket adı veya pozisyon üretme. Sadece search_jobs aracının döndürdüğü gerçek verileri kullan.
+3. İlan bulunamazsa bunu açıkça söyle ve farklı arama terimleri öner.
+4. Belirli bir ilanın detaylarını öğrenmek istediğinde get_job_detail aracını kullan.
 
-Yanıtlarını Türkçe ver. Kısa, net ve yardımcı ol.
-İş ilanı bulamazsan alternatif anahtar kelimeler öner."""
+Yanıtlarını Türkçe ver. Kısa, net ve yardımcı ol."""
+
+
+def _extract_content(message: dict) -> str:
+    """
+    QWen3 thinking modeli bazen content'i boş bırakıp reasoning_content'e yazar.
+    İkisini de kontrol et; <think> bloklarını temizle.
+    """
+    content = message.get("content") or ""
+    if not content:
+        content = message.get("reasoning_content") or ""
+    # <think>...</think> bloklarını kaldır
+    content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL)
+    return content.strip()
 
 
 async def _call_lm_studio(messages: list[dict]) -> dict:
@@ -33,10 +49,10 @@ async def _call_lm_studio(messages: list[dict]) -> dict:
         "messages": messages,
         "tools": TOOL_DEFINITIONS,
         "tool_choice": "auto",
-        "temperature": 0.7,
+        "temperature": 0.3,
         "max_tokens": 1024,
     }
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=90) as client:
         resp = await client.post(
             f"{settings.lm_studio_url}/v1/chat/completions",
             json=payload,
@@ -63,6 +79,9 @@ async def run_agent(conversation: list[dict[str, Any]]) -> str:
             return "LM Studio çevrimdışı. Lütfen LM Studio'yu açıp bir model yükle, sonra tekrar dene."
         except httpx.HTTPStatusError as e:
             logger.error("LM Studio HTTP hatası: %s", e)
+            # tool_choice parametresi desteklenmiyorsa tekrar dene
+            if e.response.status_code in (400, 422):
+                return await _run_without_tool_choice(messages)
             return "AI servisi şu an yanıt veremiyor, lütfen tekrar dene."
         except Exception as e:
             logger.exception("LM Studio beklenmeyen hata: %s", e)
@@ -74,7 +93,8 @@ async def run_agent(conversation: list[dict[str, Any]]) -> str:
 
         # No tool call → return the answer
         if finish_reason != "tool_calls" or not message.get("tool_calls"):
-            return message.get("content") or "Yanıt alınamadı."
+            content = _extract_content(message)
+            return content or "Yanıt alınamadı."
 
         # Execute each tool call
         # reasoning_content LM Studio'nun response-only alanı — request'e eklenince 400 verir
@@ -97,26 +117,47 @@ async def run_agent(conversation: list[dict[str, Any]]) -> str:
                 "content": tool_result,
             })
 
+            # Sonuç boşsa döngüyü erken bitir — modelin tekrar aramasını önle
+            if "bulunamadı" in tool_result or "hata" in tool_result.lower():
+                return _summarize_no_results(tool_result)
+
     # Fallback: one last call without tools to force a text answer
+    # Sadece system + user mesajlarını gönder — tool mesajları LM Studio'yu patlatır
+    return await _run_without_tool_choice(messages)
+
+
+def _summarize_no_results(tool_result: str) -> str:
+    """Tool sonucu boş geldiğinde sabit bir yanıt döndür."""
+    return (
+        f"{tool_result}\n\n"
+        "Farklı bir arama terimi veya şehir deneyebilirsin. "
+        "Örneğin pozisyon adı (\"backend developer\", \"veri analisti\") ya da büyük şehirler (İstanbul, İzmir, Ankara) ile aramayı tekrar dene."
+    )
+
+
+async def _run_without_tool_choice(messages: list[dict]) -> str:
+    """Son çare: sadece system + user mesajlarını gönder, tool mesajları LM Studio'yu patlatır."""
     try:
-        # Tüm mesajlardan reasoning_content temizle
-        clean_messages = [
+        # Tool/assistant-with-tool_calls mesajlarını filtrele
+        simple_messages = [
             {k: v for k, v in m.items() if k != "reasoning_content"}
             for m in messages
+            if m.get("role") in ("system", "user")
         ]
-        payload_no_tools = {
+        payload = {
             "model": settings.lm_studio_model,
-            "messages": clean_messages,
-            "temperature": 0.7,
+            "messages": simple_messages,
+            "temperature": 0.3,
             "max_tokens": 512,
         }
         async with httpx.AsyncClient(timeout=60) as client:
             resp = await client.post(
                 f"{settings.lm_studio_url}/v1/chat/completions",
-                json=payload_no_tools,
+                json=payload,
             )
             resp.raise_for_status()
             final = resp.json()
-        return final["choices"][0]["message"].get("content") or "Yanıt alınamadı."
+        content = _extract_content(final["choices"][0]["message"])
+        return content or "Yanıt alınamadı."
     except Exception:
         return "Maksimum adım sayısına ulaşıldı, lütfen soruyu yeniden dene."

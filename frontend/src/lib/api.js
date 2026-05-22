@@ -3,8 +3,13 @@ import { supabase } from './supabase'
 const BASE = import.meta.env.VITE_API_GATEWAY_URL
 
 async function apiFetch(path, options = {}) {
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token
+  let token = null
+  try {
+    const { data } = await supabase.auth.getSession()
+    token = data?.session?.access_token ?? null
+  } catch {
+    // proceed without auth token
+  }
 
   const res = await fetch(`${BASE}${path}`, {
     ...options,

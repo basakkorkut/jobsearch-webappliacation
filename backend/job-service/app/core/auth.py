@@ -55,7 +55,11 @@ def get_optional_user(
 ) -> CurrentUser | None:
     if credentials is None:
         return None
-    payload = _decode_token(credentials.credentials)
+    try:
+        payload = _decode_token(credentials.credentials)
+    except HTTPException:
+        # Geçersiz/süresi dolmuş token — anonim kullanıcı olarak devam et
+        return None
     user_id = payload.get("sub")
     if not user_id:
         return None

@@ -6,7 +6,7 @@ class Settings(BaseSettings):
 
     # LM Studio
     lm_studio_url: str = "http://localhost:1234"
-    lm_studio_model: str = "qwen3-5b"
+    lm_studio_model: str = "qwen/qwen3.5-9b"
 
     # Internal service URLs
     job_service_url: str = "http://localhost:8001"
