@@ -60,10 +60,10 @@ async def run_agent(conversation: list[dict[str, Any]]) -> str:
             result = await _call_lm_studio(messages)
         except httpx.ConnectError:
             logger.warning("LM Studio erişilemiyor — %s", settings.lm_studio_url)
-            return "AI asistanı şu an kullanılamıyor. Bu özellik yerel ortamda çalışmaktadır."
+            return "LM Studio çevrimdışı. Lütfen LM Studio'yu açıp bir model yükle, sonra tekrar dene."
         except httpx.HTTPStatusError as e:
             logger.error("LM Studio HTTP hatası: %s", e)
-            return "AI asistanı şu an kullanılamıyor. Bu özellik yerel ortamda çalışmaktadır."
+            return "AI servisi şu an yanıt veremiyor, lütfen tekrar dene."
         except Exception as e:
             logger.exception("LM Studio beklenmeyen hata: %s", e)
             return "Beklenmeyen bir hata oluştu."
