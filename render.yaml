@@ -1,0 +1,89 @@
+services:
+  # ── Job Service ──────────────────────────────────────────────
+  - type: web
+    name: jobsearch-job-service
+    env: docker
+    dockerfilePath: ./backend/job-service/Dockerfile
+    dockerContext: ./backend/job-service
+    plan: free
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: MONGODB_DB_NAME
+        value: jobsearch
+      # Aşağıdakileri Render Dashboard → Environment'tan gir:
+      - key: DATABASE_URL
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: RABBITMQ_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+
+  # ── Notification Service ─────────────────────────────────────
+  - type: web
+    name: jobsearch-notification-service
+    env: docker
+    dockerfilePath: ./backend/notification-service/Dockerfile
+    dockerContext: ./backend/notification-service
+    plan: free
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: MONGODB_DB_NAME
+        value: jobsearch
+      - key: DATABASE_URL
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: RABBITMQ_URL
+        sync: false
+
+  # ── AI Agent Service ─────────────────────────────────────────
+  - type: web
+    name: jobsearch-ai-agent-service
+    env: docker
+    dockerfilePath: ./backend/ai-agent-service/Dockerfile
+    dockerContext: ./backend/ai-agent-service
+    plan: free
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: LM_STUDIO_URL
+        value: http://localhost:1234   # local — cloud'da unavailable mesajı döner
+      - key: LM_STUDIO_MODEL
+        value: qwen/qwen3.5-9b
+      # Deploy sonrası job-service URL'ini buraya gir
+      - key: JOB_SERVICE_URL
+        sync: false
+
+  # ── API Gateway ───────────────────────────────────────────────
+  - type: web
+    name: jobsearch-api-gateway
+    env: docker
+    dockerfilePath: ./backend/api-gateway/Dockerfile
+    dockerContext: ./backend/api-gateway
+    plan: free
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      # Deploy sonrası diğer servislerin URL'lerini buraya gir
+      - key: JOB_SERVICE_URL
+        sync: false
+      - key: AI_AGENT_SERVICE_URL
+        sync: false
+      - key: NOTIFICATION_SERVICE_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
