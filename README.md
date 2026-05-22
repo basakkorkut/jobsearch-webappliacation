@@ -102,7 +102,7 @@ cd frontend && npm install && npm run dev
 
 ## Demo
 
-> TODO: add video link
+[Demo Videosu](https://drive.google.com/file/d/1MaoLx-B4GFg3OQzQM5_TBRTM3NmlkCPT/view?usp=drive_link)
 
 ---
 
