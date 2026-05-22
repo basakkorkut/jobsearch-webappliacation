@@ -1,0 +1,88 @@
+version: "3.9"
+
+# All services connect to external infrastructure (Supabase, MongoDB Atlas, Upstash Redis, CloudAMQP).
+# No local DB containers needed.
+
+x-common: &common
+  env_file: .env
+  restart: unless-stopped
+
+services:
+
+  api-gateway:
+    <<: *common
+    build:
+      context: ./backend/api-gateway
+      dockerfile: Dockerfile
+    image: jobsearch-api-gateway:latest
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      job-service:
+        condition: service_healthy
+
+  job-service:
+    <<: *common
+    build:
+      context: ./backend/job-service
+      dockerfile: Dockerfile
+    image: jobsearch-job-service:latest
+    ports:
+      - "8001:8000"
+    environment:
+      PORT: "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  notification-service:
+    <<: *common
+    build:
+      context: ./backend/notification-service
+      dockerfile: Dockerfile
+    image: jobsearch-notification-service:latest
+    ports:
+      - "8002:8000"
+    environment:
+      PORT: "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    depends_on:
+      job-service:
+        condition: service_healthy
+
+  ai-agent-service:
+    <<: *common
+    build:
+      context: ./backend/ai-agent-service
+      dockerfile: Dockerfile
+    image: jobsearch-ai-agent-service:latest
+    ports:
+      - "8003:8000"
+    environment:
+      PORT: "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # NOTE: LLM_BASE_URL must point to a reachable LM Studio instance.
+    # When running inside Docker on macOS/Windows: LLM_BASE_URL=http://host.docker.internal:1234/v1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
